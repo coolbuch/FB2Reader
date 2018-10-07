@@ -19,6 +19,10 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.ListView;
 import android.widget.TextView;
+import java.io.*;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.regex.*;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -155,4 +159,105 @@ public class Reader extends AppCompatActivity {
         }
         dayMode = !dayMode;
     }
+
+    class Section {
+        String title, text;
+
+        Section(String cont, String title) {
+            this.title = title;
+            this.text = cont;
+            if (title == "<annotation>")
+                text = "<i>".concat(cont).concat("</i>");
+            if (title == "<image>") {
+                //
+            }
+        }
+
+        public ArrayList<Section> parseSection(String text, int num) {
+            ArrayList<Section> ar = new ArrayList<>();
+            StringBuffer sb = new StringBuffer(text);
+            if (sb.indexOf("<aaaa" + Integer.toString(num + 1) + ">") == -1) {
+                String title = sb.substring(sb.indexOf("<title>") + 7, sb.indexOf("</title>"));
+                sb.delete(sb.indexOf("<title>"), sb.indexOf("</title>") + 8);
+                ar.add(new Section(sb.substring(sb.indexOf("<aaaa" + Integer.toString(num) + ">") + 7, sb.indexOf("</aaaa" + Integer.toString(num) + ">") + 8), title));
+            } else {
+                ar.addAll(parseSection(sb.substring(sb.indexOf("<aaaa" + Integer.toString(num + 1) + ">"), sb.indexOf("<aaaa" + Integer.toString(num + 1) + ">")), num + 1));
+            }
+            return ar;
+        }
+
+        public ArrayList<Section> parseSections(String text) {
+            ArrayList<Section> ar = new ArrayList<>();
+            StringBuffer textbf = new StringBuffer(text);
+            int n = 1;
+            while (true) {
+                int a = textbf.indexOf("<section>");
+                int b = textbf.indexOf("</section>");
+                if (a == -1 && b == -1) {
+                    break;
+                }
+                if (a != -1 & a < b) {
+                    textbf.replace(a, a + 9, "<aaaa" + Integer.toString(n) + ">");
+                    n += 1;
+                } else {
+                    if (b != -1 & (b < a | a == -1)) {
+                        n -= 1;
+                        textbf.replace(b, b + 10, "</aaaa" + Integer.toString(n) + ">");
+                    }
+                }
+            }
+            while (textbf.indexOf("<aaaa1>") != -1) {
+                ar.addAll(Section.parseSection(textbf.substring(textbf.indexOf("<aaaa1>"), textbf.indexOf("</aaaa1>") + 8), n));
+                textbf.delete(textbf.indexOf("<aaaa1>"), textbf.indexOf("</aaaa1>") + 8);
+            }
+            return ar;
+        }
+
+        @Override
+        public String toString() {
+            return title + "\n" + text + "\n";
+        }
+    }
+
+    public class Main {
+
+        public ArrayList<Section> parseBook(String text) {
+            ArrayList<Section> sections = new ArrayList<Section>();
+            if (text.indexOf("<annotation>") != -1) {
+                sections.add(new Section(text.substring(text.indexOf("<annotation>") + 13, text.indexOf("</annotation>") + 14), "<annotation>"));
+            }
+            //TODO: fix
+            if (text.indexOf("<image>") != -1) {
+                String image_hre = text.substring(text.substring(text.indexOf("<image>")).indexOf("href=\""), text.substring(text.indexOf("<image>")).indexOf("href") + 50);
+                String image_href = image_hre.substring(image_hre.indexOf("#"), image_hre.indexOf("\""));
+                sections.add(new Section("aaa", "<image>"));
+            }
+            if (text.indexOf("<section>") != -1) {
+                //sections.addAll(Section.parseSections(text.substring(text.indexOf("<section>"))));
+                sections.addAll(Section.parseSections(text.substring(text.indexOf("<body>"), text.indexOf("</body>") + 7)));
+            }
+            return sections;
+        }
+
+        public void main(String[] args) {
+            String text = "";
+            try {
+                URL url = new URL("https://paraknig.com/files/9171/fb2");
+                BufferedReader in = new BufferedReader(
+                        new InputStreamReader(url.openStream()));
+                String inputLine;
+                StringBuilder textBuilder = new StringBuilder();
+                while ((inputLine = in.readLine()) != null) {
+                    textBuilder.append(inputLine);//Можно   накапливать в StringBuilder а потом присвоить перемной String результат накопления
+                }
+                in.close();
+                text = textBuilder.toString();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            System.out.println(parseBook(text).toString());
+        }
+    }
+
+
 }
